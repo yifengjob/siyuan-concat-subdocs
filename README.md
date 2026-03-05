@@ -1,11 +1,9 @@
 # 拼接子文档到主文档联动编辑
 
 [![GitHub release (latest by date)](https://img.shields.io/github/v/release/yifengjob/siyuan-plugin-concat-subdocs)](https://github.com/yifengjob/siyuan-plugin-concat-subdocs/releases)
-[![GitHub license](https://img.shields.io/github/license/yifengjob/siyuan-plugin-concat-subdocs)](LICENSE)
+[![GitHub license](https://img.shields.io/github/license/yifengjob/siyuan-plugin-concat-subdocs)](https://raw.githubusercontent.com/yifengjob/siyuan-plugin-concat-subdocs/refs/heads/main/LICENSE)
 
 一个思源笔记插件，可以在主文档底部自动拼接其子文档的内容，并保持完美的渲染效果。支持实时编辑同步、悬停预览、一键清除所有拼接状态等功能。
-
-![](preview.png)
 
 ## 功能特性
 
@@ -100,5 +98,5 @@ concat-subdocs/
 
 如果您觉得这个插件对您有帮助，欢迎点个 ⭐！如果您资金富余，欢迎扫码赞赏支持一下～
 
-<img src="wechat-reward.png" alt="微信赞赏码" width="400" style="height: auto;">
+<img src="https://github/license/yifengjob/siyuan-plugin-concat-subdocs/main/wechat-reward.png" alt="微信赞赏码" width="400" style="height: auto;">
 
