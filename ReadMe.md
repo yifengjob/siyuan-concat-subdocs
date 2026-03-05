@@ -98,4 +98,5 @@ concat-subdocs/
 
 如果您觉得这个插件对您有帮助，欢迎点个 ⭐！如果您资金富余，欢迎扫码赞赏支持一下～
 
-![微信赞赏码](https://raw.githubusercontent.com/yifengjob/siyuan-plugin-concat-subdocs/main/wechat-reward.png)
+<img src="wechat-reward.png" alt="微信赞赏码" width="400" style="height: auto;">
+
