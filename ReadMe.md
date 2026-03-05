@@ -1,7 +1,7 @@
 # 拼接子文档到主文档联动编辑
 
-[![GitHub release (latest by date)](https://img.shields.io/github/v/release/yifengjob/siyuan-concat-subdocs)](https://github.com/yifengjob/siyuan-concat-subdocs/releases)
-[![GitHub license](https://img.shields.io/github/license/yifengjob/siyuan-concat-subdocs)](LICENSE)
+[![GitHub release (latest by date)](https://img.shields.io/github/v/release/yifengjob/siyuan-plugin-concat-subdocs)](https://github.com/yifengjob/siyuan-plugin-concat-subdocs/releases)
+[![GitHub license](https://img.shields.io/github/license/yifengjob/siyuan-plugin-concat-subdocs)](LICENSE)
 
 一个思源笔记插件，可以在主文档底部自动拼接其子文档的内容，并保持完美的渲染效果。支持实时编辑同步、悬停预览、一键清除所有拼接状态等功能。
 
@@ -19,17 +19,18 @@
 ### 手动安装
 1. 在[思源笔记工作空间](https://github.com/siyuan-note/siyuan)的 `data/plugins/` 目录下创建文件夹 `concat-subdocs`。
 2. 将本仓库中的以下所有文件放入该文件夹：
-   - `index.js`
-   - `index.css`
-   - `plugin.json`
-   - `icon.png`
-   - `preview.png`
-   - `README.md`
-   - `README.en_US.md`
-   - `LICENSE`
-   - `i18n/`
-      - `zh_CN.json`
-      - `en_US.json`
+```
+├── i18n/
+│   ├── zh_CN.json    # 中文本地化文件
+│   └── en_US.json    # 英文本地化文件
+├── index.js          # 主插件代码
+├── index.css         # 样式文件
+├── icon.png          # 图标文件
+├── plugin.json       # 插件配置
+├── preview.png       # 界面预览
+├── README.en_US.md   # 英文说明文档
+└── README.md         # 默认说明档
+```
 3. 重启思源笔记，或在「设置 – 集市 – 已下载」中启用插件。
 
 ### 使用社区集市（待上架）
@@ -72,8 +73,8 @@
 ```
 concat-subdocs/
 ├── i18n/
-|   ├── zh_CN.json    # 中文本地化文件
-|   └── en_US.json    # 英文本地化文件
+│   ├── zh_CN.json    # 中文本地化文件
+│   └── en_US.json    # 英文本地化文件
 ├── index.js          # 主插件代码
 ├── index.css         # 样式文件
 ├── icon.png          # 图标文件
@@ -85,7 +86,7 @@ concat-subdocs/
 
 ## 许可证
 
-[Apache-2.0](LICENSE)
+[AGPL-3.0](LICENSE)
 
 ## 致谢
 
@@ -93,5 +94,8 @@ concat-subdocs/
 - 感谢所有用户的反馈与支持。
 
 ---
+## 赞赏
 
-如果您觉得这个插件有用，欢迎点个 ⭐！
+如果您觉得这个插件对您有帮助，欢迎点个 ⭐！如果您资金富余，欢迎扫码赞赏支持一下～
+
+![微信赞赏码](https://raw.githubusercontent.com/yifengjob/siyuan-plugin-concat-subdocs/main/wechat-reward.png)
