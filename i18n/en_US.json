@@ -13,5 +13,10 @@
   "noSubDocs": "Current document has no subdocuments",
   "editLinkTitle": "Edit",
   "subDocTitle": "Untitled",
-  "loadSubDocfailed": "Load subdocument failed"
+  "loadSubDocfailed": "Load subdocument failed",
+  "maxLevelTitle": "Max Level",
+  "maxLevelDesc": "Maximum level of subdocuments to concatenate, max is 3 ",
+  "maxCountTitle": "Max Subdocument Count",
+  "maxCountDesc": "Limit the maximum number of concatenated subdocuments, max is 500 ",
+  "maxCountReached": "Exceeded max count {count}, only the first {count} are shown."
 }
