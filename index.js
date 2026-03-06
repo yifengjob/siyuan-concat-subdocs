@@ -3,10 +3,6 @@ const { Plugin, showMessage, Setting } = require('siyuan');
 module.exports = class ConcatSubDocsPlugin extends Plugin {
 
     async onload() {
-        this.config = {
-            maxLevel: 1,
-            maxCount: 10,
-        };
         await this.loadConfig(); // 加载配置
         this.concatContainers = new Map();
         this.subdocElements = new Map(); // 存储子文档ID与其DOM元素的映射，用于快速更新
@@ -21,7 +17,19 @@ module.exports = class ConcatSubDocsPlugin extends Plugin {
 
         // 初始化设置
         this.setting = new Setting({
-            confirmCallback: () => this.saveConfig(),
+            confirmCallback: async () => {
+                try {
+                    await this.saveData('config', this.config);
+                    showMessage(this.i18n.configSavedSuccess, 2000);
+                } catch (error) {
+                    showMessage(this.i18n.configSavedFailed);
+                    console.error(error);
+                }
+            },
+            destroyCallback: async () => {
+                // 点取消时重新加载配置，以防用户修改了参数但未保存直接退出，导致内存配置与配置文件不一致
+                await this.loadConfig();
+            },
         });
         // 添加设置项：清除所有拼接状态
         this.setting.addItem({
@@ -43,6 +51,7 @@ module.exports = class ConcatSubDocsPlugin extends Plugin {
             direction: 'row',
             createActionElement: () => {
                 const input = document.createElement('input');
+                const maxLevel = 5;
                 input.type = 'number';
                 input.className = 'b3-text-field';
                 input.style.width = '100px';
@@ -55,11 +64,11 @@ module.exports = class ConcatSubDocsPlugin extends Plugin {
                         input.value = this.config.maxLevel;
                         return;
                     }
-                    if (val > 3) {
-                        input.value = 3;
+                    if (val > maxLevel) {
+                        input.value = maxLevel;
                     }
-                    this.config.maxLevel = Math.min(val, 3);
-                    await this.saveData('config', this.config);
+                    this.config.maxLevel = Math.min(val, maxLevel);
+                    // await this.saveData('config', this.config);
                 });
                 return input;
             },
@@ -72,6 +81,7 @@ module.exports = class ConcatSubDocsPlugin extends Plugin {
             direction: 'row',
             createActionElement: () => {
                 const input = document.createElement('input');
+                const maxCount = 500;
                 input.type = 'number';
                 input.className = 'b3-text-field';
                 input.style.width = '100px';
@@ -84,11 +94,11 @@ module.exports = class ConcatSubDocsPlugin extends Plugin {
                         input.value = this.config.maxCount;
                         return;
                     }
-                    if (val > 500) {
-                        input.value = 500;
+                    if (val > maxCount) {
+                        input.value = maxCount;
                     }
-                    this.config.maxCount = Math.min(val, 500);
-                    await this.saveData('config', this.config);
+                    this.config.maxCount = Math.min(val, maxCount);
+                    // await this.saveData('config', this.config);
                 });
                 return input;
             }
@@ -109,17 +119,25 @@ module.exports = class ConcatSubDocsPlugin extends Plugin {
         this.eventBus.off('ws-main', this.handleWsMain);
         // if (this.setting) this.setting.destroy();
     }
+    uninstall() {
+        // 卸载插件时删除插件数据
+        this.removeData('config').then(()=>{
+            console.log(`卸载 [${this.name}] 删除 ['config'] 成功`);
+        }).catch(e => {
+            console.error(`卸载 [${this.name}] 删除 ['config'] 失败： ${e.msg}`);
+        });
+    }
     async loadConfig() {
+        this.config = {
+            maxLevel: 1,
+            maxCount: 10,
+        };
         const saved = await this.loadData('config');
-        console.log('saved max level：', saved);
         if (saved) {
             this.config = { ...this.config, ...saved };
         }
     }
 
-    async saveConfig() {
-        await this.saveData('config', this.config);
-    }
     // 处理 ws-main 事件，捕获块更新
     async handleWsMain(event) {
         const detail = event.detail;
