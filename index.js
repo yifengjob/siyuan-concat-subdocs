@@ -125,41 +125,44 @@ module.exports = class ConcatSubDocsPlugin extends Plugin {
         const detail = event.detail;
         if (!detail || !detail.data || !Array.isArray(detail.data)) return;
 
-        // 遍历每个操作
         for (const item of detail.data) {
             if (!item.doOperations || !Array.isArray(item.doOperations)) continue;
             for (const op of item.doOperations) {
-                // 关注更新操作（action === 'update'）
-                if (op.action !== 'update') continue;
+                if (op.action !== 'update' && op.action !== 'delete' && op.action !== 'insert' && op.action !== 'move') continue;
 
-                // 获取更新的块 ID
                 const blockId = op.id;
                 if (!blockId) continue;
 
-                // 检查该块是否属于某个子文档（可能是文档本身或文档内的块）
-                // 我们需要找到其根文档 ID
+                let rootId = null;
                 try {
-                    const blockInfo = await this.getBlockInfo(blockId);
-                    if (!blockInfo) continue;
-                    const rootId = blockInfo.rootID;
-                    if (!rootId) continue;
-
-                    // 如果根文档 ID 是我们正在拼接的某个子文档，则刷新它
-                    if (this.subdocElements.has(rootId)) {
-                        const element = this.subdocElements.get(rootId);
-                        if (element && element.parentNode) {
-                            // 重新获取内容并更新
-                            const newContent = await this.getDocRenderedContent(rootId);
-                            const contentDiv = element.querySelector('.concat-subdoc-content');
-                            if (contentDiv) {
-                                contentDiv.innerHTML = newContent;
-                                // 设置子文档内容不可编辑
-                                this.setSubElementNotEditable(contentDiv);
-                            }
+                    if (op.action === 'delete') {
+                        // 删除操作：通过父块 ID 获取根文档
+                        if (op.parentID) {
+                            const parentInfo = await this.getBlockInfo(op.parentID).catch(() => null);
+                            if (parentInfo) rootId = parentInfo.rootID;
                         }
+                    } else {
+                        // 其他操作：直接获取块信息
+                        const blockInfo = await this.getBlockInfo(blockId);
+                        if (blockInfo) rootId = blockInfo.rootID;
                     }
                 } catch (e) {
-                    console.error('处理更新事件失败', e);
+                    console.warn('获取块信息失败，可能已删除', e);
+                    continue;
+                }
+
+                if (!rootId) continue;
+
+                if (this.subdocElements.has(rootId)) {
+                    const element = this.subdocElements.get(rootId);
+                    if (element?.parentNode) {
+                        const newContent = await this.getDocRenderedContent(rootId);
+                        const contentDiv = element.querySelector('.concat-subdoc-content');
+                        if (contentDiv) {
+                            contentDiv.innerHTML = newContent;
+                            this.setSubElementNotEditable(contentDiv);
+                        }
+                    }
                 }
             }
         }
