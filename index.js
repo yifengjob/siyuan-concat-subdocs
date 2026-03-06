@@ -208,7 +208,7 @@ module.exports = class ConcatSubDocsPlugin extends Plugin {
                 }
             }
 
-            showMessage(this.i18n.clearSuccess.replace('{count}', processed), 5000);
+            showMessage(this.i18n.clearSuccess.replace(/\{count\}/g, processed), 5000);
         } catch (e) {
             console.error('清除拼接状态失败', e);
             showMessage(this.i18n.clearFail, 5000, 'error');
