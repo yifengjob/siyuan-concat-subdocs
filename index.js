@@ -1,5 +1,9 @@
 const { Plugin, showMessage, Setting } = require('siyuan');
 
+const STORAGE_NAME = 'concat-subdocs';
+const MAX_COUNT = 500;
+const MAX_LEVEL = 5;
+
 module.exports = class ConcatSubDocsPlugin extends Plugin {
 
     async onload() {
@@ -19,7 +23,7 @@ module.exports = class ConcatSubDocsPlugin extends Plugin {
         this.setting = new Setting({
             confirmCallback: async () => {
                 try {
-                    await this.saveData('config', this.config);
+                    await this.saveData(STORAGE_NAME, this.config);
                     showMessage(this.i18n.configSavedSuccess, 2000);
                 } catch (error) {
                     showMessage(this.i18n.configSavedFailed);
@@ -51,7 +55,6 @@ module.exports = class ConcatSubDocsPlugin extends Plugin {
             direction: 'row',
             createActionElement: () => {
                 const input = document.createElement('input');
-                const maxLevel = 5;
                 input.type = 'number';
                 input.className = 'b3-text-field';
                 input.style.width = '100px';
@@ -64,11 +67,11 @@ module.exports = class ConcatSubDocsPlugin extends Plugin {
                         input.value = this.config.maxLevel;
                         return;
                     }
-                    if (val > maxLevel) {
-                        input.value = maxLevel;
+                    if (val > MAX_LEVEL) {
+                        input.value = MAX_LEVEL;
                     }
-                    this.config.maxLevel = Math.min(val, maxLevel);
-                    // await this.saveData('config', this.config);
+                    this.config.maxLevel = Math.min(val, MAX_LEVEL);
+                    // await this.saveData(STORAGE_NAME, this.config);
                 });
                 return input;
             },
@@ -81,7 +84,6 @@ module.exports = class ConcatSubDocsPlugin extends Plugin {
             direction: 'row',
             createActionElement: () => {
                 const input = document.createElement('input');
-                const maxCount = 500;
                 input.type = 'number';
                 input.className = 'b3-text-field';
                 input.style.width = '100px';
@@ -94,11 +96,11 @@ module.exports = class ConcatSubDocsPlugin extends Plugin {
                         input.value = this.config.maxCount;
                         return;
                     }
-                    if (val > maxCount) {
-                        input.value = maxCount;
+                    if (val > MAX_COUNT) {
+                        input.value = MAX_COUNT;
                     }
-                    this.config.maxCount = Math.min(val, maxCount);
-                    // await this.saveData('config', this.config);
+                    this.config.maxCount = Math.min(val, MAX_COUNT);
+                    // await this.saveData(STORAGE_NAME, this.config);
                 });
                 return input;
             }
@@ -121,10 +123,10 @@ module.exports = class ConcatSubDocsPlugin extends Plugin {
     }
     uninstall() {
         // 卸载插件时删除插件数据
-        this.removeData('config').then(()=>{
-            console.log(`卸载 [${this.name}] 删除 ['config'] 成功`);
+        this.removeData(STORAGE_NAME).then(()=>{
+            console.log(`卸载 [${this.name}] 删除 [${STORAGE_NAME}] 成功`);
         }).catch(e => {
-            console.error(`卸载 [${this.name}] 删除 ['config'] 失败： ${e.msg}`);
+            console.error(`卸载 [${this.name}] 删除 [${STORAGE_NAME}] 失败： ${e.msg}`);
         });
     }
     async loadConfig() {
@@ -132,7 +134,7 @@ module.exports = class ConcatSubDocsPlugin extends Plugin {
             maxLevel: 1,
             maxCount: 10,
         };
-        const saved = await this.loadData('config');
+        const saved = await this.loadData(STORAGE_NAME);
         if (saved) {
             this.config = { ...this.config, ...saved };
         }
