@@ -12,6 +12,14 @@ module.exports = class ConcatSubDocsPlugin extends Plugin {
         this.subdocElements = new Map(); // 存储子文档ID与其DOM元素的映射，用于快速更新
         this.lastToggleTime = 0;
 
+        // 存储清理函数
+        this.cleanupFunctions = [];
+        // 存储当前鼠标 Y 坐标
+        // 性能优化：存储当前鼠标 Y 坐标和当前悬停的容器
+        this.currentMouseY = 0;
+        this.currentHoverContainer = null;
+        this.rafId = null; // requestAnimationFrame ID
+
         // 添加顶部工具栏按钮
         this.addTopBar({
             icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="1 1 22 22"><path fill="currentColor" d="M3 14V9h8v5zm0-7V5q0-.825.588-1.412T5 3h14q.825 0 1.413.588T21 5v2zm2 14q-.825 0-1.412-.587T3 19v-3h8v5zm8-7V9h8v2.3q-.95-.425-2.025-.25t-1.875.975L15.125 14zm0 8v-3.075l5.525-5.5q.225-.225.5-.325t.55-.1q.3 0 .575.113t.5.337l.925.925q.2.225.313.5t.112.55t-.1.563t-.325.512l-5.5 5.5zm6.575-5.6l.925-.975l-.925-.925l-.95.95z"/></svg>',
@@ -106,6 +114,77 @@ module.exports = class ConcatSubDocsPlugin extends Plugin {
             }
         })
 
+        // 创建滚动处理函数
+        const scrollHandler = this.debounce(this.updateEditLinkPositions.bind(this), 30);
+        const resizeHandler = this.debounce(this.updateEditLinkPositions.bind(this), 30);
+
+        const mouseMoveHandler = (e) => {
+            this.currentMouseY = e.clientY;
+            const hoverContainer = document.elementFromPoint(e.clientX, e.clientY)?.closest('.concat-subdoc-item');
+            this.currentHoverContainer = hoverContainer;
+
+            if (!this.rafId) {
+                this.rafId = requestAnimationFrame(() => {
+                    this.updateEditLinkPositions();
+                    this.rafId = null;
+                });
+            }
+        };
+
+        // 监听 window 滚动和 resize
+        window.addEventListener('scroll', scrollHandler, true);
+        window.addEventListener('resize', resizeHandler);
+        window.addEventListener('mousemove', mouseMoveHandler, { passive: true });
+
+        // 思源笔记内部滚动容器监听（关键修复）
+        const internalScrollContainers = [
+            '.fn__flex-1',
+            '.protyle',
+            '.layout__tab-content',
+            '.fn__flex-column'
+        ];
+
+        // 延迟绑定内部滚动监听（确保 DOM 已加载）
+        setTimeout(() => {
+            internalScrollContainers.forEach(selector => {
+                const containers = document.querySelectorAll(selector);
+                containers.forEach(container => {
+                    container.addEventListener('scroll', scrollHandler, { passive: true });
+                    this.cleanupFunctions.push(() => {
+                        container.removeEventListener('scroll', scrollHandler);
+                    });
+                });
+            });
+        }, 100);
+
+        // 监听 DOM 变化，动态添加新的滚动容器监听
+        const observer = new MutationObserver(() => {
+            internalScrollContainers.forEach(selector => {
+                const containers = document.querySelectorAll(selector);
+                containers.forEach(container => {
+                    if (!container._hasScrollListener) {
+                        container.addEventListener('scroll', scrollHandler, { passive: true });
+                        container._hasScrollListener = true;
+                        this.cleanupFunctions.push(() => {
+                            container.removeEventListener('scroll', scrollHandler);
+                        });
+                    }
+                });
+            });
+        });
+
+        observer.observe(document.body, { childList: true, subtree: true });
+        this.cleanupFunctions.push(() => observer.disconnect());
+
+        this.cleanupFunctions.push(() => {
+            window.removeEventListener('scroll', scrollHandler, true);
+            window.removeEventListener('resize', resizeHandler);
+            window.removeEventListener('mousemove', mouseMoveHandler);
+            if (this.rafId) {
+                cancelAnimationFrame(this.rafId);
+            }
+        });
+
         this.eventBus.on('loaded-protyle-dynamic', this.onProtyleLoaded.bind(this));
         this.eventBus.on('loaded-protyle-static', this.onProtyleLoaded.bind(this));
         this.eventBus.on('unload-doc', this.handleDocUnload.bind(this));
@@ -120,10 +199,19 @@ module.exports = class ConcatSubDocsPlugin extends Plugin {
         this.eventBus.off('unload-doc', this.handleDocUnload);
         this.eventBus.off('ws-main', this.handleWsMain);
         // if (this.setting) this.setting.destroy();
+        // 清理窗口事件监听器
+        if (this.cleanupFunctions) {
+            this.cleanupFunctions.forEach(fn => fn());
+            this.cleanupFunctions = [];
+        }
+        if (this.rafId) {
+            cancelAnimationFrame(this.rafId);
+            this.rafId = null;
+        }
     }
     uninstall() {
         // 卸载插件时删除插件数据
-        this.removeData(STORAGE_NAME).then(()=>{
+        this.removeData(STORAGE_NAME).then(() => {
             console.log(`卸载 [${this.name}] 删除 [${STORAGE_NAME}] 成功`);
         }).catch(e => {
             console.error(`卸载 [${this.name}] 删除 [${STORAGE_NAME}] 失败： ${e.msg}`);
@@ -161,7 +249,7 @@ module.exports = class ConcatSubDocsPlugin extends Plugin {
                             const parentInfo = await this.getBlockInfo(op.parentID).catch(() => null);
                             if (parentInfo) rootId = parentInfo.rootID;
                         } else {
-                            // 通过在文档中查找<div data-node-id="op.id"></div>元素，然后获取父元素 ID。
+                            // 通过在文档中查找<div data-node-id="op.id"></div>元素，然后获取父元素。
                             const element = document.querySelector(`[data-node-id="${op.id}"]`);
                             if (element) {
                                 const ancestor = element.closest('[data-subdoc-id]');
@@ -584,6 +672,10 @@ module.exports = class ConcatSubDocsPlugin extends Plugin {
         });
 
         this.concatContainers.set(docId, { container });
+        // 初始化 editLink 位置（使用当前鼠标位置或默认值）
+        setTimeout(() => {
+            this.updateEditLinkPositions();
+        }, 50);
     }
 
     setSubElementNotEditable(contentDiv) {
@@ -613,6 +705,136 @@ module.exports = class ConcatSubDocsPlugin extends Plugin {
             return await this.callApi('/api/block/getBlockInfo', { id: blockId });
         } catch { return null; }
     }
+    /**
+     * 更新所有 editLink 的位置
+     */
+    updateEditLinkPositions() {
+        const editLinkHeight = 28;
+        // 增大边距到 30px，确保足够的安全距离
+        const edgeMargin = 100;
+        const viewportHeight = window.innerHeight;
 
+        // 窗口顶部 10% 和底部 10% 区域
+        const topZoneHeight = viewportHeight * 0.3;
+        const bottomZoneTop = viewportHeight * 0.9;
+
+        const containers = document.querySelectorAll('.concat-subdoc-item');
+
+        containers.forEach(container => {
+            const editLink = container.querySelector('.concat-edit-link');
+            if (!editLink) return;
+
+            const containerRect = container.getBoundingClientRect();
+            const containerTop = containerRect.top;
+            const containerHeight = containerRect.height;
+            const containerBottom = containerRect.bottom;
+
+            // 容器完全不在可视区域，保持默认位置
+            if (containerBottom < 0 || containerTop > viewportHeight) {
+                editLink.style.transform = `translateY(${edgeMargin}px)`;
+                editLink.style.top = '0';
+                return;
+            }
+
+            // 计算容器在可视区域内的实际范围
+            const visibleTop = Math.max(0, containerTop);
+            const visibleBottom = Math.min(viewportHeight, containerBottom);
+            const visibleHeight = visibleBottom - visibleTop;
+
+            // 计算 editLink 在容器内的安全范围（确保可视，增大边距）
+            const minTopInContainer = Math.max(edgeMargin, visibleTop - containerTop);
+            const maxTopInContainer = Math.min(
+                containerHeight - editLinkHeight - edgeMargin,
+                visibleBottom - containerTop - editLinkHeight
+            );
+
+            // 如果安全范围无效，说明容器可视区域太小，使用默认位置
+            if (minTopInContainer > maxTopInContainer) {
+                // 尝试使用更小的边距
+                const fallbackMargin = 8;
+                const fallbackMin = Math.max(fallbackMargin, visibleTop - containerTop);
+                const fallbackMax = Math.min(
+                    containerHeight - editLinkHeight - fallbackMargin,
+                    visibleBottom - containerTop - editLinkHeight
+                );
+
+                if (fallbackMin <= fallbackMax) {
+                    editLink.style.transform = `translateY(${fallbackMin}px)`;
+                } else {
+                    editLink.style.transform = `translateY(${fallbackMargin}px)`;
+                }
+                editLink.style.top = '0';
+                return;
+            }
+
+            let finalTop;
+
+            // 只计算当前悬停的容器
+            if (this.currentHoverContainer !== container) {
+                // 非悬停容器：保持在容器顶部（安全位置）
+                finalTop = minTopInContainer;
+            } else {
+                // 悬停容器：智能选择顶部或底部位置
+
+                // 计算容器中心点在窗口中的位置
+                const containerCenterY = containerTop + containerHeight / 2;
+
+                // 判断容器主要在窗口的上半部分还是下半部分
+                const isInUpperHalf = containerCenterY < viewportHeight / 2;
+
+                if (isInUpperHalf) {
+                    // 容器在上半部分：优先使用顶部位置
+                    finalTop = minTopInContainer;
+                } else {
+                    // 容器在下半部分：优先使用底部位置
+                    finalTop = maxTopInContainer;
+                }
+
+                // 额外优化：如果容器跨越顶部 10% 区域，使用顶部位置
+                if (containerTop < topZoneHeight && visibleHeight > editLinkHeight) {
+                    finalTop = minTopInContainer;
+                }
+                // 如果容器跨越底部 10% 区域，使用底部位置
+                else if (containerBottom > bottomZoneTop && visibleHeight > editLinkHeight) {
+                    finalTop = maxTopInContainer;
+                }
+            }
+
+            // 最终边界约束（确保绝对不会超出）
+            finalTop = Math.max(minTopInContainer, Math.min(maxTopInContainer, finalTop));
+
+            // 二次验证：确保 editLink 在可视区域内（增大边距检查）
+            const editLinkAbsoluteTop = containerTop + finalTop;
+            const editLinkAbsoluteBottom = editLinkAbsoluteTop + editLinkHeight;
+
+            if (editLinkAbsoluteTop < edgeMargin) {
+                finalTop = finalTop + (edgeMargin - editLinkAbsoluteTop);
+            }
+            if (editLinkAbsoluteBottom > viewportHeight - edgeMargin) {
+                finalTop = finalTop - (editLinkAbsoluteBottom - (viewportHeight - edgeMargin));
+            }
+
+            // 最终再次约束（防止二次验证后超出容器）
+            finalTop = Math.max(minTopInContainer, Math.min(maxTopInContainer, finalTop));
+
+            // 使用 transform 提高性能
+            editLink.style.transform = `translateY(${finalTop}px)`;
+            editLink.style.top = '0';
+        });
+    }
+    /**
+     * 防抖函数
+     */
+    debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    }
     saveConfig() { }
 };
