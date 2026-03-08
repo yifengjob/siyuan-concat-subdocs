@@ -115,8 +115,8 @@ module.exports = class ConcatSubDocsPlugin extends Plugin {
         })
 
         // 创建滚动处理函数
-        const scrollHandler = this.debounce(this.updateEditLinkPositions.bind(this), 30);
-        const resizeHandler = this.debounce(this.updateEditLinkPositions.bind(this), 30);
+        const scrollHandler = this.debounce(this.updateEditLinkPositions.bind(this), 10);
+        const resizeHandler = this.debounce(this.updateEditLinkPositions.bind(this), 10);
 
         const mouseMoveHandler = (e) => {
             this.currentMouseY = e.clientY;
@@ -155,7 +155,7 @@ module.exports = class ConcatSubDocsPlugin extends Plugin {
                     });
                 });
             });
-        }, 100);
+        }, 50);
 
         // 监听 DOM 变化，动态添加新的滚动容器监听
         const observer = new MutationObserver(() => {
@@ -675,7 +675,7 @@ module.exports = class ConcatSubDocsPlugin extends Plugin {
         // 初始化 editLink 位置（使用当前鼠标位置或默认值）
         setTimeout(() => {
             this.updateEditLinkPositions();
-        }, 50);
+        }, 10);
     }
 
     setSubElementNotEditable(contentDiv) {
@@ -715,7 +715,7 @@ module.exports = class ConcatSubDocsPlugin extends Plugin {
         const viewportHeight = window.innerHeight;
 
         // 窗口顶部 10% 和底部 10% 区域
-        const topZoneHeight = viewportHeight * 0.3;
+        const topZoneHeight = viewportHeight * 0.1;
         const bottomZoneTop = viewportHeight * 0.9;
 
         const containers = document.querySelectorAll('.concat-subdoc-item');
