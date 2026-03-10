@@ -524,9 +524,10 @@ module.exports = class ConcatSubDocsPlugin extends Plugin {
       toggleButton.className = `block__icon fn__flex-center ariaLabel concat-toggle-button ${enabled ? "concat-enabled" : ""}`;
       toggleButton.ariaLabel = this.i18n.toggleTitle;
       toggleButton.onclick = () => {
-        this.toggleConcatForCurrentDoc();
-        this.getConcatState(docId).then((enabled) => {
-          toggleButton.classList.toggle("concat-enabled", !enabled);
+        this.toggleConcatForCurrentDoc().then(() => {
+          this.getConcatState(docId).then((enabled) => {
+            toggleButton.classList.toggle("concat-enabled", enabled);
+          });
         });
       };
       breadcrumb__space.insertAdjacentElement("afterend", toggleButton);
@@ -576,6 +577,7 @@ module.exports = class ConcatSubDocsPlugin extends Plugin {
     const subDocs = await this.getSubDocs(docId);
     if (subDocs.length === 0) {
       showMessage(this.i18n.noSubDocs, 3000, "info");
+      this.setConcatState(docId, false);
       return;
     }
 
