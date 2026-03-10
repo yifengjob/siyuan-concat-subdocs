@@ -80,14 +80,22 @@
 }
 
 /* 编辑链接自身悬停 */
-.concat-edit-link:hover {
+@media (hover: hover) and (pointer: fine) {
+  .concat-edit-link:hover {
+    background-color: var(--b3-theme-primary);
+    color: white;
+    transform: scale(1.1) translateY(0);
+    box-shadow: 0 8px 20px rgba(var(--b3-theme-primary-rgb), 0.4);
+    border-color: transparent;
+  }
+}
+.concat-edit-link:active {
   background-color: var(--b3-theme-primary);
   color: white;
   transform: scale(1.1) translateY(0);
   box-shadow: 0 8px 20px rgba(var(--b3-theme-primary-rgb), 0.4);
   border-color: transparent;
 }
-
 /* 左侧定位版本（当右侧空间不足时） */
 .concat-edit-link--left {
   right: auto;
@@ -102,8 +110,13 @@
 .block__icon.fn__flex-center.ariaLabel.concat-toggle-button.concat-enabled {
   color: var(--b3-theme-primary);
 }
-
-.block__icon.fn__flex-center.ariaLabel.concat-toggle-button:hover {
+@media (hover: hover) and (pointer: fine) {
+  .block__icon.fn__flex-center.ariaLabel.concat-toggle-button:hover {
+    color: white;
+    background-color: var(--b3-theme-primary);
+  }
+}
+.block__icon.fn__flex-center.ariaLabel.concat-toggle-button:active {
   color: white;
   background-color: var(--b3-theme-primary);
 }
