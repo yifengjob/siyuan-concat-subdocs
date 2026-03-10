@@ -20,5 +20,9 @@
   "maxCountDesc": "限制拼接的子文档最大数量，最多为 500 个。",
   "maxCountReached": "已超过最大数量 {count}，仅显示前 {count} 个。",
   "configSavedSuccess": "配置已保存成功",
-  "configSavedFail": "配置保存失败，请查看控制台日志"
+  "configSavedFail": "配置保存失败，请查看控制台日志",
+  "floatingEditButtonTopDistanceTitle": "浮动编辑按钮距离顶部的距离",
+  "floatingEditButtonTopDistanceDesc": "设置浮动编辑按钮距离顶部的距离，单位为像素。",
+  "floatingEditButtonBottomDistanceTitle": "浮动编辑按钮距离底部的距离",
+  "floatingEditButtonBottomDistanceDesc": "设置浮动编辑按钮距离底部的距离，单位为像素。"
 }
