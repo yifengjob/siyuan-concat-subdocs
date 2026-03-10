@@ -20,5 +20,9 @@
   "maxCountDesc": "Limit the maximum number of concatenated subdocuments, max is 500 ",
   "maxCountReached": "Exceeded max count {count}, only the first {count} are shown.",
   "configSavedSuccess": "Configuration saved successfully",
-  "configSavedFail": "Failed to save configuration"
+  "configSavedFail": "Failed to save configuration",
+  "floatingEditButtonTopDistanceTitle": "Floating Edit Button Top Distance",
+  "floatingEditButtonTopDistanceDesc": "Distance from the top of the screen to show the floating edit button, in pixels",
+  "floatingEditButtonBottomDistanceTitle": "Floating Edit Button Bottom Distance",
+  "floatingEditButtonBottomDistanceDesc": "Distance from the bottom of the screen to show the floating edit button, in pixels"
 }
