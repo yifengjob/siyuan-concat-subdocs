@@ -5,7 +5,7 @@
 .concat-subdocs-container {
   margin-top: 20px;
   margin-bottom: 20px;
-  border-top: 1px dashed var(--b3-theme-primary);
+  border-top: 1px dashed var(--b3-border-color);
 }
 
 .concat-subdoc-item {
@@ -13,11 +13,11 @@
   background-color: var(--b3-theme-background);
   padding: 16px 0;
   margin-bottom: 16px;
-  border-bottom: 1px dashed var(--b3-theme-primary);
+  border-bottom: 1px dashed var(--b3-border-color);
 }
 
 .concat-subdoc-item:last-child {
-  border-bottom: 2px double var(--b3-theme-primary);
+  border-bottom: 2px double var(--b3-border-color);
 }
 
 .concat-subdoc-content {
@@ -49,53 +49,52 @@
     transform 0.2s ease,
     background-color 0.2s,
     box-shadow 0.2s;
-  color: var(--b3-theme-primary);
-  background-color: rgba(var(--b3-theme-primary-rgb), 0.4);
+  transform: translateY(0);
+  color: var(--b3-theme-on-surface);
+  background-color: var(--b3-theme-surface); 
   backdrop-filter: blur(4px);
-  border: 1px solid rgba(var(--b3-theme-primary-rgb), 0.8);
+  border: 1px solid var(--b3-border-color); 
   border-radius: 50%;
-  width: 28px;
-  height: 28px;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 12px var(--b3-border-color); 
+  opacity: 0.2;
   z-index: 10;
   pointer-events: auto;
   cursor: pointer;
-}
-
-.concat-edit-link {
   position: absolute;
+  width: 28px;
+  height: 28px;
   right: 8px;
   top: 0;
-  transform: translateY(0);
-  /* opacity: 0.2; */
-  display: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .concat-subdoc-item:hover .concat-edit-link {
   opacity: 1;
-  animation: none;
-  display: flex;
 }
 
 /* 编辑链接自身悬停 */
 @media (hover: hover) and (pointer: fine) {
   .concat-edit-link:hover {
+    color: var(--b3-theme-on-primary);
     background-color: var(--b3-theme-primary);
-    color: white;
     transform: scale(1.1) translateY(0);
-    box-shadow: 0 8px 20px rgba(var(--b3-theme-primary-rgb), 0.4);
+    box-shadow: 0 4px 12px var(--b3-theme-primary-lightest);
     border-color: transparent;
+    opacity: 1!important;
   }
 }
+
 .concat-edit-link:active {
+  color: var(--b3-theme-on-primary);
   background-color: var(--b3-theme-primary);
-  color: white;
   transform: scale(1.1) translateY(0);
-  box-shadow: 0 8px 20px rgba(var(--b3-theme-primary-rgb), 0.4);
+  box-shadow: 0 4px 12px var(--b3-theme-primary-lightest);
   border-color: transparent;
+  opacity: 1!important;
 }
+
 /* 左侧定位版本（当右侧空间不足时） */
 .concat-edit-link--left {
   right: auto;
@@ -110,12 +109,14 @@
 .block__icon.fn__flex-center.ariaLabel.concat-toggle-button.concat-enabled {
   color: var(--b3-theme-primary);
 }
+
 @media (hover: hover) and (pointer: fine) {
   .block__icon.fn__flex-center.ariaLabel.concat-toggle-button:hover {
     color: white;
     background-color: var(--b3-theme-primary);
   }
 }
+
 .block__icon.fn__flex-center.ariaLabel.concat-toggle-button:active {
   color: white;
   background-color: var(--b3-theme-primary);
