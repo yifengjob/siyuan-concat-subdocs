@@ -26,21 +26,10 @@
   padding: 0;
 }
 
-/* 列表样式增强 */
-.concat-subdoc-content.protyle-wysiwyg ul,
-.concat-subdoc-content.protyle-wysiwyg ol {
-  padding-left: 2em;
-  margin: 0.5em 0;
-}
-
-.concat-subdoc-content.protyle-wysiwyg li {
-  margin: 0.2em 0;
-  line-height: 1.625;
-  min-height: calc(1.625em + 8px);
-}
-
-.concat-subdoc-content.protyle-wysiwyg li p {
-  margin: 0;
+.protyle-wysiwyg.concat-subdoc-item.protyle-custom .protyle-title {
+  margin-top: 0;
+  margin-right: 0;
+  margin-left: 0;
 }
 
 .concat-edit-link {
@@ -50,13 +39,13 @@
     background-color 0.2s,
     box-shadow 0.2s;
   transform: translateY(0);
-  color: var(--b3-theme-on-surface);
-  background-color: var(--b3-theme-surface); 
+  color: var(--b3-theme-on-surface-light);
+  background-color: var(--b3-theme-surface-light); 
   backdrop-filter: blur(4px);
   border: 1px solid var(--b3-border-color); 
   border-radius: 50%;
   box-shadow: 0 4px 12px var(--b3-border-color); 
-  opacity: 0.2;
+  opacity: 0.05;
   z-index: 10;
   pointer-events: auto;
   cursor: pointer;
