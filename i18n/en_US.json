@@ -15,14 +15,14 @@
   "subDocTitle": "Untitled",
   "loadSubDocfailed": "Load subdocument failed",
   "maxLevelTitle": "Max Level",
-  "maxLevelDesc": "Maximum level of subdocuments to concatenate, max is 5 ",
+  "maxLevelDesc": "Maximum level of subdocuments to concatenate, max is {maxLevel} ",
   "maxCountTitle": "Max Subdocument Count",
-  "maxCountDesc": "Limit the maximum number of concatenated subdocuments, max is 500 ",
+  "maxCountDesc": "Limit the maximum number of concatenated subdocuments, max is {maxCount} ",
   "maxCountReached": "Exceeded max count {count}, only the first {count} are shown.",
   "configSavedSuccess": "Configuration saved successfully",
   "configSavedFail": "Failed to save configuration",
   "floatingEditButtonTopDistanceTitle": "Floating Edit Button Top Distance",
-  "floatingEditButtonTopDistanceDesc": "Distance from the top of the screen to show the floating edit button, in pixels",
+  "floatingEditButtonTopDistanceDesc": "Distance from the top of the screen to show the floating edit button, in pixels. min is {minDistance}px, max is {maxDistance}px.",
   "floatingEditButtonBottomDistanceTitle": "Floating Edit Button Bottom Distance",
-  "floatingEditButtonBottomDistanceDesc": "Distance from the bottom of the screen to show the floating edit button, in pixels"
+  "floatingEditButtonBottomDistanceDesc": "Distance from the bottom of the screen to show the floating edit button, in pixels. min is {minDistance}px, max is {maxDistance}px."
 }
