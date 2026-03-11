@@ -594,6 +594,7 @@ module.exports = class ConcatSubDocsPlugin extends Plugin {
         await this.setConcatState(docId, false);
       }
     } else {
+      editorElement.classList.remove("concat-maindoc-editor");
       const existing = editorElement.nextElementSibling;
       if (
         existing &&
@@ -692,6 +693,7 @@ module.exports = class ConcatSubDocsPlugin extends Plugin {
     ) {
       // 存在则移除，关闭拼接
       existing.remove();
+      editorElement.classList.remove("concat-maindoc-editor");
       this.concatContainers.delete(docId);
       await this.setConcatState(docId, false);
     } else {
