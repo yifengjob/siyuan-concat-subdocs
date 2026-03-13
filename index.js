@@ -2,7 +2,7 @@
  * @fileoverview 思源笔记子文档拼接插件（优化版）
  * @description 将当前文档的子文档内容拼接显示在主文档下方，支持多层级递归
  * @author yifeng
- * @version 1.0.8
+ * @version 1.0.9
  */
 
 const { Plugin, showMessage, Setting } = require("siyuan");
@@ -118,7 +118,7 @@ module.exports = class ConcatSubDocsPlugin extends Plugin {
         input.min = 1;
         input.max = MAX_LEVEL;
         input.step = 1;
-        input.addEventListener("change", async () => {
+        input.addEventListener("change", () => {
           const val = parseInt(input.value, 10);
           if (isNaN(val) || val < 1) {
             input.value = this.config.maxLevel;
@@ -147,7 +147,7 @@ module.exports = class ConcatSubDocsPlugin extends Plugin {
         input.min = 10;
         input.max = MAX_COUNT; // 增加 max 属性
         input.step = 5;
-        input.addEventListener("change", async () => {
+        input.addEventListener("change", () => {
           const val = parseInt(input.value, 10);
           if (isNaN(val) || val < 10) {
             input.value = this.config.maxCount;
@@ -178,7 +178,7 @@ module.exports = class ConcatSubDocsPlugin extends Plugin {
         input.min = FLOATING_EDIT_BUTTON_TOP_MIN_DISTANCE;
         input.max = FLOATING_EDIT_BUTTON_TOP_MAX_DISTANCE; // 增加 max
         input.step = 1;
-        input.addEventListener("change", async () => {
+        input.addEventListener("change", () => {
           const val = parseInt(input.value, 10);
           if (isNaN(val) || val < FLOATING_EDIT_BUTTON_TOP_MIN_DISTANCE) {
             input.value = this.config.floatingEditButtonTopDistance;
@@ -211,7 +211,7 @@ module.exports = class ConcatSubDocsPlugin extends Plugin {
         input.min = FLOATING_EDIT_BUTTON_BOTTOM_MIN_DISTANCE;
         input.max = FLOATING_EDIT_BUTTON_BOTTOM_MAX_DISTANCE; // 增加 max
         input.step = 1;
-        input.addEventListener("change", async () => {
+        input.addEventListener("change", () => {
           const val = parseInt(input.value, 10);
           if (isNaN(val) || val < FLOATING_EDIT_BUTTON_BOTTOM_MIN_DISTANCE) {
             input.value = this.config.floatingEditButtonBottomDistance;
@@ -226,6 +226,69 @@ module.exports = class ConcatSubDocsPlugin extends Plugin {
           );
         });
         return input;
+      },
+    });
+    // 添加设置项：悬浮编辑按钮显示位置
+    this.setting.addItem({
+      title: this.i18n.floatingEditButtonDirectionTitle,
+      description: this.i18n.floatingEditButtonDirectionDesc,
+      direction: "row",
+      createActionElement: () => {
+        // 创建一个容器（可选）
+        const container = document.createElement("div");
+
+        // 创建第一个radio (left)
+        const radioLeft = document.createElement("input");
+        radioLeft.type = "radio";
+        radioLeft.name = "direction";
+        radioLeft.value = "left";
+        radioLeft.id = "direction-left";
+
+        // 创建label
+        const labelLeft = document.createElement("label");
+        labelLeft.htmlFor = "direction-left";
+        labelLeft.textContent = this.i18n.floatingEditButtonDirectionLeft;
+        labelLeft.style.marginRight = "24px";
+        labelLeft.style.marginLeft = "8px";
+        if (this.config.floatingEditButtonDirection === "left") {
+          radioLeft.checked = true;
+        }
+
+        // 绑定事件
+        radioLeft.addEventListener("change", () => {
+          if (radioLeft.checked) {
+            this.config.floatingEditButtonDirection = "left";
+          }
+        });
+
+        // 将radio和label添加到容器
+        container.appendChild(radioLeft);
+        container.appendChild(labelLeft);
+
+        // 创建第二个radio (right)
+        const radioRight = document.createElement("input");
+        radioRight.type = "radio";
+        radioRight.name = "direction";
+        radioRight.value = "right";
+        radioRight.id = "direction-right";
+
+        const labelRight = document.createElement("label");
+        labelRight.htmlFor = "direction-right";
+        labelRight.textContent = this.i18n.floatingEditButtonDirectionRight;
+        labelRight.style.marginLeft = "8px";
+
+        if (this.config.floatingEditButtonDirection === "right") {
+          radioRight.checked = true;
+        }
+        radioRight.addEventListener("change", () => {
+          if (radioRight.checked) {
+            this.config.floatingEditButtonDirection = "right";
+          }
+        });
+
+        container.appendChild(radioRight);
+        container.appendChild(labelRight);
+        return container;
       },
     });
 
@@ -364,6 +427,7 @@ module.exports = class ConcatSubDocsPlugin extends Plugin {
       maxCount: 10,
       floatingEditButtonTopDistance: 105,
       floatingEditButtonBottomDistance: 55,
+      floatingEditButtonDirection: "right",
     };
     const saved = await this.loadData(STORAGE_NAME);
     if (saved) {
@@ -582,7 +646,6 @@ module.exports = class ConcatSubDocsPlugin extends Plugin {
     if (!docId) return;
 
     const enabled = await this.getConcatState(docId);
-
     this.createToggleButton(protyle, enabled, docId);
 
     const editorElement = protyle.wysiwyg.element;
@@ -630,7 +693,7 @@ module.exports = class ConcatSubDocsPlugin extends Plugin {
       toggleButton.ariaLabel = this.i18n.toggleTitle;
       // 修复：使用 async 函数确保状态更新后再获取新状态
       toggleButton.onclick = async () => {
-        await this.toggleConcatForCurrentDoc();
+        await this.toggleConcatForCurrentDoc(toggleButton,docId);
         const newEnabled = await this.getConcatState(docId);
         toggleButton.classList.toggle("concat-enabled", newEnabled);
       };
@@ -652,23 +715,28 @@ module.exports = class ConcatSubDocsPlugin extends Plugin {
 
   /**
    * 切换当前文档的拼接状态
+   * @param {HTMLElement} toggleButton - 切换按钮元素
+   * @param {string} docId - 文档 ID
    * @returns {Promise<void>}
    */
-  async toggleConcatForCurrentDoc() {
+  async toggleConcatForCurrentDoc(toggleButton,docId) {
     // 防抖：避免快速连续点击
     const now = Date.now();
     if (now - this.lastToggleTime < 100) return;
     this.lastToggleTime = now;
 
-    const visibleProtyle = document.querySelector(".protyle:not(.fn__none)");
-    if (!visibleProtyle) {
-      showMessage(this.i18n.noCurrentDoc, 3000, "error");
+    if (!toggleButton) {
+      showMessage(this.i18n.noToggleButton, 3000, "error");
       return;
     }
 
-    const docId = this.getDocIdFromElement(visibleProtyle);
     if (!docId) {
       showMessage(this.i18n.noDocId, 3000, "error");
+      return;
+    }
+    const visibleProtyle = toggleButton.closest(".protyle");
+    if (!visibleProtyle) {
+      showMessage(this.i18n.noCurrentDoc, 3000, "error");
       return;
     }
 
@@ -1110,11 +1178,8 @@ module.exports = class ConcatSubDocsPlugin extends Plugin {
    * 增加了统一的垂直边距，使按钮在容器顶部和底部都保持相同间距
    */
   updateEditLinkPositions() {
-    // 编辑链接元素的高度（28px，由 CSS 决定）
-    const editLinkHeight = 28;
     // 当前视口的高度和宽度
     const viewportHeight = window.innerHeight;
-    const viewportWidth = window.innerWidth;
 
     // 统一的垂直边距，使按钮不紧贴容器顶部/底部（单位：px）
     const VERTICAL_MARGIN = 20;
@@ -1123,8 +1188,8 @@ module.exports = class ConcatSubDocsPlugin extends Plugin {
     const TOP_SAFE = this.config.floatingEditButtonTopDistance;
     const BOTTOM_SAFE = this.config.floatingEditButtonBottomDistance;
 
-    // 水平左移阈值：当右侧空间小于此值时，将按钮切换到容器左侧显示
-    const LEFT_SHIFT_THRESHOLD = 0;
+    // 显示方向：左、右
+    const LEFT_DIRECTION = this.config.floatingEditButtonDirection === "left";
 
     // 获取所有子文档容器元素
     const containers = document.querySelectorAll(".concat-subdoc-item");
@@ -1132,22 +1197,32 @@ module.exports = class ConcatSubDocsPlugin extends Plugin {
     const viewportCenterY = viewportHeight / 2;
 
     containers.forEach((container) => {
+
       // 获取该容器内的编辑链接
       const editLink = container.querySelector(".concat-edit-link");
       if (!editLink) return;
+      const rect = editLink.getBoundingClientRect();
+      const editLinkWidth = rect.width; // 元素实际渲染宽度
+      const editLinkHeight = rect.height; // 元素实际渲染高度
 
+      // 获取容器的边距
+      const containerPaddingLeft = parseInt(container.style.paddingLeft);
+      const containerPaddingRight = parseInt(container.style.paddingRight);
       // 获取容器的位置和尺寸信息
       const containerRect = container.getBoundingClientRect();
       const containerTop = containerRect.top;
       const containerHeight = containerRect.height;
       const containerBottom = containerRect.bottom;
 
-      // ----- 水平方向处理：优先放在右侧，空间不足时切换到左侧 -----
-      const screenRightSpace = viewportWidth - containerRect.right;
-      if (screenRightSpace < LEFT_SHIFT_THRESHOLD) {
-        editLink.classList.add("concat-edit-link--left");
+      if (LEFT_DIRECTION && containerPaddingLeft > editLinkWidth) {
+        editLink.style.right = "auto";
+        editLink.style.left = `${containerPaddingLeft - editLinkWidth}px`;
+      } else if (!LEFT_DIRECTION && containerPaddingRight > editLinkWidth) {
+        editLink.style.left = "auto";
+        editLink.style.right = `${containerPaddingRight - editLinkWidth}px`;
       } else {
-        editLink.classList.remove("concat-edit-link--left");
+        editLink.style.left = `${containerPaddingLeft}px`;
+        editLink.style.right = "auto";
       }
 
       // 如果容器完全不可见（在视口之外），将链接固定在顶部安全位置
