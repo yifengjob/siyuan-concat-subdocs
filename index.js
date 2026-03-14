@@ -2,7 +2,7 @@
  * @fileoverview 思源笔记子文档拼接插件（优化版）
  * @description 将当前文档的子文档内容拼接显示在主文档下方，支持多层级递归
  * @author yifeng
- * @version 1.0.9
+ * @version 1.0.10
  */
 
 const { Plugin, showMessage, Setting } = require("siyuan");
@@ -693,7 +693,7 @@ module.exports = class ConcatSubDocsPlugin extends Plugin {
       toggleButton.ariaLabel = this.i18n.toggleTitle;
       // 修复：使用 async 函数确保状态更新后再获取新状态
       toggleButton.onclick = async () => {
-        await this.toggleConcatForCurrentDoc(toggleButton,docId);
+        await this.toggleConcatForCurrentDoc(toggleButton, docId);
         const newEnabled = await this.getConcatState(docId);
         toggleButton.classList.toggle("concat-enabled", newEnabled);
       };
@@ -719,7 +719,7 @@ module.exports = class ConcatSubDocsPlugin extends Plugin {
    * @param {string} docId - 文档 ID
    * @returns {Promise<void>}
    */
-  async toggleConcatForCurrentDoc(toggleButton,docId) {
+  async toggleConcatForCurrentDoc(toggleButton, docId) {
     // 防抖：避免快速连续点击
     const now = Date.now();
     if (now - this.lastToggleTime < 100) return;
@@ -1100,7 +1100,7 @@ module.exports = class ConcatSubDocsPlugin extends Plugin {
       editLink.setAttribute("data-id", subDoc.id);
       editLink.title = this.i18n.editLinkTitle;
       editLink.innerHTML =
-        '<svg class="icon" style="width:16px;height:16px"><use xlink:href="#iconEdit"></use></svg>';
+        '<svg class="icon"><use xlink:href="#iconEdit"></use></svg>';
 
       subDocContainer.appendChild(contentDiv);
       subDocContainer.appendChild(editLink);
@@ -1174,142 +1174,127 @@ module.exports = class ConcatSubDocsPlugin extends Plugin {
 
   /**
    * 更新所有编辑链接的位置
-   * 根据容器位置和视口大小动态调整链接位置，确保始终可见
-   * 增加了统一的垂直边距，使按钮在容器顶部和底部都保持相同间距
+   * 根据容器位置和所属编辑器的可视区域动态调整链接位置，确保始终可见
+   * 支持上下分屏（多编辑器实例），有效区域已包含安全余量，防止像素舍入误差
    */
   updateEditLinkPositions() {
-    // 当前视口的高度和宽度
     const viewportHeight = window.innerHeight;
-
-    // 统一的垂直边距，使按钮不紧贴容器顶部/底部（单位：px）
-    const VERTICAL_MARGIN = 20;
-
-    // 从配置中读取屏幕安全边距（避开顶部工具栏和底部状态栏）
     const TOP_SAFE = this.config.floatingEditButtonTopDistance;
     const BOTTOM_SAFE = this.config.floatingEditButtonBottomDistance;
-
-    // 显示方向：左、右
     const LEFT_DIRECTION = this.config.floatingEditButtonDirection === "left";
+    const SAFE_PADDING = 1; // 安全余量，防止浮点数误差导致超出
 
-    // 获取所有子文档容器元素
     const containers = document.querySelectorAll(".concat-subdoc-item");
-    // 视口垂直中心位置
-    const viewportCenterY = viewportHeight / 2;
 
     containers.forEach((container) => {
-
-      // 获取该容器内的编辑链接
       const editLink = container.querySelector(".concat-edit-link");
       if (!editLink) return;
-      const rect = editLink.getBoundingClientRect();
-      const editLinkWidth = rect.width; // 元素实际渲染宽度
-      const editLinkHeight = rect.height; // 元素实际渲染高度
 
-      // 获取容器的边距
-      const containerPaddingLeft = parseInt(container.style.paddingLeft);
-      const containerPaddingRight = parseInt(container.style.paddingRight);
-      // 获取容器的位置和尺寸信息
+      const protyle = container.closest(".protyle");
+      if (!protyle) return;
+
+      const protyleRect = protyle.getBoundingClientRect();
+
+      // 计算 protyle 内部可视区域顶部（考虑面包屑）
+      let visualTop = protyleRect.top;
+      const breadcrumb = protyle.querySelector(".protyle-breadcrumb");
+      if (breadcrumb) {
+        const breadcrumbRect = breadcrumb.getBoundingClientRect();
+        visualTop = Math.max(visualTop, breadcrumbRect.bottom);
+      }
+
+      // 有效区域顶部：取面包屑底部和全局顶部安全距离的较大值，加上安全余量
+      const effectiveTop = Math.max(visualTop, TOP_SAFE) + SAFE_PADDING;
+      // 有效区域底部：取 protyle 内容底部（protyleRect.top + clientHeight）和全局底部安全距离的较小值，减去安全余量
+      const protyleContentBottom = protyleRect.top + protyle.clientHeight;
+      const effectiveBottom =
+        Math.min(protyleContentBottom, viewportHeight - BOTTOM_SAFE) -
+        SAFE_PADDING;
+
+      // 如果有效区域高度不足，跳过（理论上不会）
+      if (effectiveTop >= effectiveBottom) return;
+
+      const editLinkRect = editLink.getBoundingClientRect();
+      const editLinkWidth = editLinkRect.width;
+      const editLinkHeight = editLinkRect.height;
+
+      const VERTICAL_MARGIN = 14; // 统一顶部/底部间距
+
       const containerRect = container.getBoundingClientRect();
       const containerTop = containerRect.top;
       const containerHeight = containerRect.height;
       const containerBottom = containerRect.bottom;
 
-      if (LEFT_DIRECTION && containerPaddingLeft > editLinkWidth) {
+      // ----- 水平方向处理（基于容器内边距）-----
+      const containerPaddingLeft = parseInt(container.style.paddingLeft) || 0;
+      const containerPaddingRight = parseInt(container.style.paddingRight) || 0;
+      if (LEFT_DIRECTION && containerPaddingLeft > 1.2 * editLinkWidth) {
         editLink.style.right = "auto";
-        editLink.style.left = `${containerPaddingLeft - editLinkWidth}px`;
-      } else if (!LEFT_DIRECTION && containerPaddingRight > editLinkWidth) {
+        editLink.style.left = `${containerPaddingLeft - 1.2 * editLinkWidth}px`;
+      } else if (
+        !LEFT_DIRECTION &&
+        containerPaddingRight > 1.2 * editLinkWidth
+      ) {
         editLink.style.left = "auto";
-        editLink.style.right = `${containerPaddingRight - editLinkWidth}px`;
+        editLink.style.right = `${containerPaddingRight - 1.2 * editLinkWidth}px`;
       } else {
         editLink.style.left = `${containerPaddingLeft}px`;
         editLink.style.right = "auto";
       }
 
-      // 如果容器完全不可见（在视口之外），将链接固定在顶部安全位置
-      if (containerBottom < 0 || containerTop > viewportHeight) {
+      // 如果容器完全不在有效区域内，固定到顶部安全位置
+      if (containerBottom < effectiveTop || containerTop > effectiveBottom) {
         editLink.style.transform = `translateY(${TOP_SAFE}px)`;
         return;
       }
 
-      // ----- 计算链接在容器内的垂直安全范围（考虑容器可见部分和屏幕安全边距）-----
-      // 容器在视口中的可见部分
-      const visibleTop = Math.max(0, containerTop);
-      const visibleBottom = Math.min(viewportHeight, containerBottom);
+      // ----- 计算垂直允许范围（基于有效区域与容器的交集）-----
+      const visibleTopInContainer = Math.max(0, effectiveTop - containerTop);
+      const visibleBottomInContainer = Math.min(
+        containerHeight,
+        effectiveBottom - containerTop,
+      );
 
-      // 基于可见区域，增加垂直边距后的最小/最大允许 top 值（相对于容器顶部）
-      const minTopVisible = visibleTop - containerTop + VERTICAL_MARGIN;
-      const maxTopVisible =
-        visibleBottom - containerTop - editLinkHeight - VERTICAL_MARGIN;
+      let minTop = visibleTopInContainer + VERTICAL_MARGIN;
+      let maxTop = visibleBottomInContainer - editLinkHeight - VERTICAL_MARGIN;
 
-      // 基于屏幕安全边距的最小/最大允许 top 值
-      const minTopScreen = TOP_SAFE - containerTop;
-      const maxTopScreen =
-        viewportHeight - BOTTOM_SAFE - editLinkHeight - containerTop;
-
-      // 综合两个约束，取交集
-      let minTop = Math.max(minTopVisible, minTopScreen);
-      let maxTop = Math.min(maxTopVisible, maxTopScreen);
-
-      // 如果交集无效（minTop > maxTop），说明容器高度太小，无法同时满足所有约束，
-      // 此时退回到不加垂直边距的可见范围（但保留屏幕安全边距）
+      // 如果边距导致范围无效，回退到不加边距
       if (minTop > maxTop) {
-        minTop = Math.max(visibleTop - containerTop, minTopScreen);
-        maxTop = Math.min(
-          visibleBottom - containerTop - editLinkHeight,
-          maxTopScreen,
-        );
+        minTop = visibleTopInContainer;
+        maxTop = visibleBottomInContainer - editLinkHeight;
       }
 
-      // 确保 minTop 和 maxTop 在 [0, 容器高度-按钮高度] 范围内
+      // 限制在容器高度范围内
       minTop = Math.max(0, Math.min(minTop, containerHeight - editLinkHeight));
       maxTop = Math.max(0, Math.min(maxTop, containerHeight - editLinkHeight));
 
-      // 如果仍然无效，直接使用顶部安全位置作为后备
       if (minTop > maxTop) {
-        const fallback = Math.min(containerHeight - editLinkHeight, TOP_SAFE);
-        editLink.style.transform = `translateY(${fallback}px)`;
+        editLink.style.transform = `translateY(${TOP_SAFE}px)`;
         return;
       }
 
-      // ----- 决定链接应放置在容器的上半部分还是下半部分（基于窗口中心）-----
-      let preferTop; // true=靠上，false=靠下
+      // ----- 决定靠上还是靠下（基于窗口中心）-----
+      const viewportCenterY = viewportHeight / 2;
+      let preferTop;
 
-      // 特殊情况：容器高度超过视口且上下边缘都不可见时，优先靠下
       if (containerTop < 0 && containerBottom > viewportHeight) {
-        preferTop = false;
+        preferTop = false; // 超高容器，优先靠下
+      } else if (containerBottom < viewportCenterY) {
+        preferTop = true; // 容器整体在上方
+      } else if (containerTop > viewportCenterY) {
+        preferTop = false; // 容器整体在下方
       } else {
-        // 判断容器相对于窗口垂直中心的位置
-        if (containerBottom < viewportCenterY) {
-          // 容器整体在窗口中心上方 → 链接靠上
-          preferTop = true;
-        } else if (containerTop > viewportCenterY) {
-          // 容器整体在窗口中心下方 → 链接靠下
-          preferTop = false;
-        } else {
-          // 窗口中心在容器内部 → 比较上下边离中心的距离，选择较远的一侧
-          const distTop = viewportCenterY - containerTop;
-          const distBottom = containerBottom - viewportCenterY;
-          preferTop = distTop > distBottom;
-        }
+        const distTop = viewportCenterY - containerTop;
+        const distBottom = containerBottom - viewportCenterY;
+        preferTop = distTop > distBottom;
       }
 
-      // 根据偏好选择 minTop 或 maxTop 作为初始位置
       let finalTop = preferTop ? minTop : maxTop;
 
-      // 再次验证屏幕安全边距（确保按钮绝对位置不会超出安全区域）
-      const linkAbsTop = containerTop + finalTop;
-      const linkAbsBottom = linkAbsTop + editLinkHeight;
-      if (linkAbsTop < TOP_SAFE) {
-        finalTop += TOP_SAFE - linkAbsTop; // 向上调整
-      }
-      if (linkAbsBottom > viewportHeight - BOTTOM_SAFE) {
-        finalTop -= linkAbsBottom - (viewportHeight - BOTTOM_SAFE); // 向下调整
-      }
-
-      // 最终限制在 [minTop, maxTop] 范围内
+      // 由于 effectiveTop/effectiveBottom 已包含安全余量，且 minTop/maxTop 基于它们计算，
+      // 因此 finalTop 自动满足安全要求，无需额外调整，直接限制在范围内即可
       finalTop = Math.max(minTop, Math.min(maxTop, finalTop));
 
-      // 应用变换
       editLink.style.transform = `translateY(${finalTop}px)`;
     });
   }
