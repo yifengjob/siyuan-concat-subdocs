@@ -2,7 +2,7 @@
   "name": "siyuan-plugin-concat-subdocs",
   "author": "YiFeng",
   "url": "https://github.com/yifengjob/siyuan-plugin-concat-subdocs",
-  "version": "1.0.12",
+  "version": "1.0.13",
   "minAppVersion": "3.3.0",
   "disabledInPublish": false,
   "backends": [
@@ -12,12 +12,12 @@
     "all"
   ],
   "displayName": {
-    "default": "子文档拼接",
+    "default": "子文档拼接（文档流）",
     "en_US": "Concat Subdocs"
   },
   "description": {
-    "default": "一个思源笔记插件，可以在主文档底部自动拼接其子文档的内容，并保持完美的渲染效果。支持实时编辑同步、悬停预览、一键清除所有拼接状态等功能。",
-    "en_US": "A plugin for concat subdocs in the bottom of main doc. Support realtime sync, hover preview, clear all concat status and more."
+    "default": "一个思源笔记插件，可以在主文档底部自动拼接其子文档的内容，以文档流的方式展示，并保持完美的渲染效果。支持实时编辑同步、悬停预览、一键清除所有拼接状态等功能。",
+    "en_US": "A siyuan plugin that automatically concatenates the contents of subdocuments into the main document, displaying them in a document flow, and maintaining a perfect rendering effect. Supports real-time editing synchronization, hover preview, and one-click clearing of all concatenation states."
   },
   "readme": {
     "default": "README.md",
