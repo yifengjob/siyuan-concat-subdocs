@@ -2,7 +2,7 @@
  * @fileoverview 思源笔记子文档拼接插件（优化版，使用 Protyle 临时渲染）
  * @description 将当前文档的子文档内容拼接显示在主文档下方，支持多层级递归
  * @author yifeng
- * @version 1.0.12
+ * @version 1.0.13
  * @license AGPL-3.0
  */
 
@@ -572,12 +572,8 @@ class StateService {
    * @returns {Promise<void>}
    */
   async clearAllConcatStates() {
-    if (!confirm(this.plugin.i18n.clearConfirm)) return;
-
-    showMessage(this.plugin.i18n.clearing, 5000);
-
     try {
-      const sql = "SELECT id FROM blocks WHERE type = 'd'";
+      const sql = `SELECT id FROM blocks WHERE type = 'd' AND ial LIKE '%${CONFIG.ATTRIBUTES.CONCAT_STATE}=%'`;
       const result = await this.plugin.callApi(CONFIG.API.QUERY_SQL, {
         stmt: sql,
       });
@@ -602,34 +598,15 @@ class StateService {
         },
         10,
       );
-
-      this.cleanupCurrentTabs();
-      showMessage(
-        this.plugin.i18n.clearSuccess.replace(
-          /\{maximumNumberOfDocuments\}/g,
-          processed,
-        ),
-        5000,
-      );
+      if (processed > 0) {
+        showMessage(
+          this.plugin.i18n.clearSuccess.replace(/\{count\}/g, processed),
+          2000,
+        );
+      }
     } catch (e) {
       console.error("清除拼接状态失败", e);
       showMessage(this.plugin.i18n.clearFail, 5000, "error");
-    }
-  }
-
-  /**
-   * 清理当前所有已打开标签页中插入的拼接容器
-   */
-  cleanupCurrentTabs() {
-    if (this.plugin.app && this.plugin.app.workspace) {
-      for (const tab of this.plugin.app.workspace.tabs) {
-        const docId = tab.model?.documentId;
-        if (docId && this.plugin.concatContainers.has(docId)) {
-          const data = this.plugin.concatContainers.get(docId);
-          if (data && data.container) data.container.remove();
-          this.plugin.concatContainers.delete(docId);
-        }
-      }
     }
   }
 }
@@ -845,10 +822,14 @@ class PositionService {
     const safePadding = 1;
     const verticalMargin = 14;
 
-    const containers = document.querySelectorAll(`.${CONFIG.CSS_CLASSES.SUBDOC_ITEM}`);
+    const containers = document.querySelectorAll(
+      `.${CONFIG.CSS_CLASSES.SUBDOC_ITEM}`,
+    );
 
     containers.forEach((container) => {
-      const editLink = container.querySelector(`.${CONFIG.CSS_CLASSES.EDIT_LINK}`);
+      const editLink = container.querySelector(
+        `.${CONFIG.CSS_CLASSES.EDIT_LINK}`,
+      );
       if (!editLink) return;
 
       const protyle = container.closest(".protyle");
@@ -1080,7 +1061,6 @@ class SettingsService {
    * @private
    */
   addSettingItems() {
-    this.plugin.setting.addItem(this.createClearStateSetting());
     this.plugin.setting.addItem(this.createMaxLevelSetting());
     this.plugin.setting.addItem(this.createMaxCountSetting());
     this.plugin.setting.addItem(this.createFloatingTopDistanceSetting());
@@ -1090,27 +1070,6 @@ class SettingsService {
       this.createFloatingEditButtonOnLeftSideOfDocumentSetting(),
     );
     this.plugin.setting.addItem(this.createRestoreOnStartupSetting());
-  }
-
-  /**
-   * 创建“清除所有拼接状态”按钮项
-   * @returns {Object} 设置项定义
-   * @private
-   */
-  createClearStateSetting() {
-    return {
-      title: this.plugin.i18n.clearStatesTitle,
-      description: this.plugin.i18n.clearStatesDesc,
-      createActionElement: () => {
-        const button = document.createElement("button");
-        button.className = "b3-button b3-button--outline";
-        button.textContent = this.plugin.i18n.clearStatesTitle;
-        button.addEventListener("click", () =>
-          this.plugin.stateService.clearAllConcatStates(),
-        );
-        return button;
-      },
-    };
   }
 
   /**
@@ -1813,8 +1772,11 @@ module.exports = class ConcatSubDocsPlugin extends Plugin {
                 `[${CONFIG.ATTRIBUTES.NODE_ID}="${op.id}"]`,
               );
               if (element) {
-                const ancestor = element.closest(`[${CONFIG.ATTRIBUTES.SUBDOC_ID}]`);
-                if (ancestor) rootId = ancestor.getAttribute(CONFIG.ATTRIBUTES.SUBDOC_ID);
+                const ancestor = element.closest(
+                  `[${CONFIG.ATTRIBUTES.SUBDOC_ID}]`,
+                );
+                if (ancestor)
+                  rootId = ancestor.getAttribute(CONFIG.ATTRIBUTES.SUBDOC_ID);
               }
             }
           } else {
@@ -2039,174 +2001,174 @@ module.exports = class ConcatSubDocsPlugin extends Plugin {
     return descendants;
   }
 
- /**
- * 处理新增文档
- * @param {Object} detail - 事件详情
- */
-async handleCreateDoc(detail) {
-  // ======================================================================
-  // 从 path 中提取新文档 ID
-  // ======================================================================
-  const docPath = detail.data?.path;
-  if (!docPath || typeof docPath !== "string") {
-    console.warn("新增文档：缺少有效的 path 字段");
-    return;
-  }
-
-  // 路径格式：/notebookId/parentPath/docId.sy
-  // 提取文档 ID（最后一段，去掉 .sy 后缀）
-  const pathSegments = docPath.split("/").filter((s) => s.length > 0);
-  const docFileName = pathSegments[pathSegments.length - 1];
-  const newDocId = docFileName.replace(/\.sy$/, "");
-
-  if (!newDocId) {
-    console.warn("新增文档：无法从路径提取文档 ID", docPath);
-    return;
-  }
-
-  // ======================================================================
-  // 1. 优先从缓存获取父文档 ID（最快）
-  // ======================================================================
-  let parentDocId = null;
-  const parentPath = docPath.replace(/\/[^/]+\.sy$/, "");
-
-  if (parentPath !== docPath) {
-    // 方案 1：从缓存中查找父文档
-    for (const [cachedDocId, cachedPath] of this.docPathMap.entries()) {
-      if (cachedPath === parentPath + ".sy") {
-        parentDocId = cachedDocId;
-        break;
-      }
+  /**
+   * 处理新增文档
+   * @param {Object} detail - 事件详情
+   */
+  async handleCreateDoc(detail) {
+    // ======================================================================
+    // 从 path 中提取新文档 ID
+    // ======================================================================
+    const docPath = detail.data?.path;
+    if (!docPath || typeof docPath !== "string") {
+      console.warn("新增文档：缺少有效的 path 字段");
+      return;
     }
 
-    // 方案 2：SQL 查询父文档 ID
-    if (!parentDocId) {
-      try {
-        const sql = `SELECT id FROM blocks WHERE path = '${parentPath}.sy' AND type = 'd'`;
-        const result = await this.apiService.querySql(sql);
-        if (result && result.length > 0) {
-          parentDocId = result[0].id;
+    // 路径格式：/notebookId/parentPath/docId.sy
+    // 提取文档 ID（最后一段，去掉 .sy 后缀）
+    const pathSegments = docPath.split("/").filter((s) => s.length > 0);
+    const docFileName = pathSegments[pathSegments.length - 1];
+    const newDocId = docFileName.replace(/\.sy$/, "");
+
+    if (!newDocId) {
+      console.warn("新增文档：无法从路径提取文档 ID", docPath);
+      return;
+    }
+
+    // ======================================================================
+    // 1. 优先从缓存获取父文档 ID（最快）
+    // ======================================================================
+    let parentDocId = null;
+    const parentPath = docPath.replace(/\/[^/]+\.sy$/, "");
+
+    if (parentPath !== docPath) {
+      // 方案 1：从缓存中查找父文档
+      for (const [cachedDocId, cachedPath] of this.docPathMap.entries()) {
+        if (cachedPath === parentPath + ".sy") {
+          parentDocId = cachedDocId;
+          break;
         }
-      } catch (e) {
-        console.debug(`[SQL] 查询父文档失败`, e.message);
+      }
+
+      // 方案 2：SQL 查询父文档 ID
+      if (!parentDocId) {
+        try {
+          const sql = `SELECT id FROM blocks WHERE path = '${parentPath}.sy' AND type = 'd'`;
+          const result = await this.apiService.querySql(sql);
+          if (result && result.length > 0) {
+            parentDocId = result[0].id;
+          }
+        } catch (e) {
+          console.debug(`[SQL] 查询父文档失败`, e.message);
+        }
+      }
+
+      // 方案 3：从 detail 中获取（如果有）
+      if (!parentDocId && detail.data?.parentDocID) {
+        parentDocId = detail.data.parentDocID;
       }
     }
 
-    // 方案 3：从 detail 中获取（如果有）
-    if (!parentDocId && detail.data?.parentDocID) {
-      parentDocId = detail.data.parentDocID;
+    if (!parentDocId) {
+      await this.updateDocRelationCache(newDocId);
+      return;
     }
-  }
 
-  if (!parentDocId) {
+    // ======================================================================
+    // 2. 更新文档关系缓存
+    // ======================================================================
     await this.updateDocRelationCache(newDocId);
-    return;
-  }
 
-  // ======================================================================
-  // 2. 更新文档关系缓存
-  // ======================================================================
-  await this.updateDocRelationCache(newDocId);
+    // ======================================================================
+    // 3. 检查是否有主文档应该显示这个新子文档
+    // ======================================================================
+    for (const [docId, data] of this.concatContainers.entries()) {
+      const isSubDoc = await this.isDirectOrIndirectSubDoc(newDocId, docId);
 
-  // ======================================================================
-  // 3. 检查是否有主文档应该显示这个新子文档
-  // ======================================================================
-  for (const [docId, data] of this.concatContainers.entries()) {
-    const isSubDoc = await this.isDirectOrIndirectSubDoc(newDocId, docId);
+      if (!isSubDoc) continue;
 
-    if (!isSubDoc) continue;
+      // 检查数量限制
+      if (
+        this.config.maximumNumberOfDocuments > 0 &&
+        data.subDocIds.length >= this.config.maximumNumberOfDocuments
+      ) {
+        showMessage(
+          this.i18n.maximumNumberOfDocumentsReached.replace(
+            /\{maximumNumberOfDocuments\}/g,
+            this.config.maximumNumberOfDocuments,
+          ),
+          3000,
+          "info",
+        );
+        continue;
+      }
 
-    // 检查数量限制
-    if (
-      this.config.maximumNumberOfDocuments > 0 &&
-      data.subDocIds.length >= this.config.maximumNumberOfDocuments
-    ) {
-      showMessage(
-        this.i18n.maximumNumberOfDocumentsReached.replace(
-          /\{maximumNumberOfDocuments\}/g,
-          this.config.maximumNumberOfDocuments,
-        ),
-        3000,
-        "info",
+      // 检查层级限制
+      const level = await this.getDocLevel(newDocId, docId);
+      if (
+        this.config.maxDocumentHierarchyLevel > 0 &&
+        level > this.config.maxDocumentHierarchyLevel
+      ) {
+        continue;
+      }
+
+      // 检查 DOM 是否已存在（可能由 filetreeSortChanged 提前创建了缓存但 DOM 未渲染）
+      const existingDom = data.container.querySelector(
+        `[${CONFIG.ATTRIBUTES.SUBDOC_ID}="${newDocId}"]`,
       );
-      continue;
+      if (existingDom) {
+        // DOM 已存在，无需重复创建
+        continue;
+      }
+
+      // 渲染 HTML
+      let html;
+      try {
+        html = await this.documentService.renderSubDocHtml(newDocId);
+      } catch (e) {
+        console.warn(`渲染新子文档 ${newDocId} 失败`, e);
+        continue;
+      }
+
+      // 创建子文档容器
+      const subDocContainer = this.componentService.createSubDocContainer(
+        {
+          id: newDocId,
+          name: detail.data?.name || docFileName.replace(/\.sy$/, ""),
+        },
+        data.editorElement,
+      );
+
+      const contentDiv = subDocContainer.querySelector(
+        `.${CONFIG.CSS_CLASSES.SUBDOC_CONTENT}`,
+      );
+      if (contentDiv) {
+        contentDiv.innerHTML = html;
+        this.componentService.setContentEditable(contentDiv);
+      }
+
+      // 绑定编辑链接点击事件
+      const editLink = subDocContainer.querySelector(
+        `.${CONFIG.CSS_CLASSES.EDIT_LINK}`,
+      );
+      if (editLink) {
+        editLink.addEventListener("click", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const id = editLink.getAttribute("data-id");
+          if (id) this.documentService.openDocument(id);
+        });
+      }
+
+      // 将新容器追加到主文档容器末尾（稍后统一排序）
+      data.container.appendChild(subDocContainer);
+
+      // 更新 subdocElements 映射
+      if (!this.subdocElements.has(newDocId)) {
+        this.subdocElements.set(newDocId, []);
+      }
+      this.subdocElements.get(newDocId).push(subDocContainer);
+
+      // 如果 newDocId 不在 subDocIds 中，则添加（通常 filetreeSortChanged 已添加，但安全起见检查）
+      if (!data.subDocIds.includes(newDocId)) {
+        data.subDocIds.push(newDocId);
+      }
+
+      // 重新排序整个容器，确保新文档位于正确位置（基于当前 subDocIds 顺序）
+      this._reorderSubDocs(docId, data, data.subDocIds);
     }
-
-    // 检查层级限制
-    const level = await this.getDocLevel(newDocId, docId);
-    if (
-      this.config.maxDocumentHierarchyLevel > 0 &&
-      level > this.config.maxDocumentHierarchyLevel
-    ) {
-      continue;
-    }
-
-    // 检查 DOM 是否已存在（可能由 filetreeSortChanged 提前创建了缓存但 DOM 未渲染）
-    const existingDom = data.container.querySelector(
-      `[${CONFIG.ATTRIBUTES.SUBDOC_ID}="${newDocId}"]`
-    );
-    if (existingDom) {
-      // DOM 已存在，无需重复创建
-      continue;
-    }
-
-    // 渲染 HTML
-    let html;
-    try {
-      html = await this.documentService.renderSubDocHtml(newDocId);
-    } catch (e) {
-      console.warn(`渲染新子文档 ${newDocId} 失败`, e);
-      continue;
-    }
-
-    // 创建子文档容器
-    const subDocContainer = this.componentService.createSubDocContainer(
-      {
-        id: newDocId,
-        name: detail.data?.name || docFileName.replace(/\.sy$/, ""),
-      },
-      data.editorElement,
-    );
-
-    const contentDiv = subDocContainer.querySelector(
-      `.${CONFIG.CSS_CLASSES.SUBDOC_CONTENT}`
-    );
-    if (contentDiv) {
-      contentDiv.innerHTML = html;
-      this.componentService.setContentEditable(contentDiv);
-    }
-
-    // 绑定编辑链接点击事件
-    const editLink = subDocContainer.querySelector(
-      `.${CONFIG.CSS_CLASSES.EDIT_LINK}`
-    );
-    if (editLink) {
-      editLink.addEventListener("click", (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        const id = editLink.getAttribute("data-id");
-        if (id) this.documentService.openDocument(id);
-      });
-    }
-
-    // 将新容器追加到主文档容器末尾（稍后统一排序）
-    data.container.appendChild(subDocContainer);
-
-    // 更新 subdocElements 映射
-    if (!this.subdocElements.has(newDocId)) {
-      this.subdocElements.set(newDocId, []);
-    }
-    this.subdocElements.get(newDocId).push(subDocContainer);
-
-    // 如果 newDocId 不在 subDocIds 中，则添加（通常 filetreeSortChanged 已添加，但安全起见检查）
-    if (!data.subDocIds.includes(newDocId)) {
-      data.subDocIds.push(newDocId);
-    }
-
-    // 重新排序整个容器，确保新文档位于正确位置（基于当前 subDocIds 顺序）
-    this._reorderSubDocs(docId, data, data.subDocIds);
   }
-}
 
   /**
    * 获取新文档应该插入的位置（只在同级兄弟文档中排序）
@@ -2443,202 +2405,214 @@ async handleCreateDoc(detail) {
     }
   }
 
- /**
- * 处理移动文档
- * @param {Object} detail - 事件详情
- */
-async handleMoveDoc(detail) {
-  // ======================================================================
-  // 1. 从事件参数中提取路径信息（不依赖数据库查询）
-  // ======================================================================
-  const fromPath = detail.data?.fromPath;
-  const newPath = detail.data?.newPath;
+  /**
+   * 处理移动文档（修复版本）
+   * @param {Object} detail - 事件详情
+   */
+  async handleMoveDoc(detail) {
+    // ======================================================================
+    // 1. 从事件参数中提取路径信息（不依赖数据库查询）
+    // ======================================================================
+    const fromPath = detail.data?.fromPath;
+    const newPath = detail.data?.newPath;
 
-  if (
-    !fromPath ||
-    !newPath ||
-    typeof fromPath !== "string" ||
-    typeof newPath !== "string"
-  ) {
-    console.debug("[handleMoveDoc] 缺少 fromPath 或 newPath");
-    return;
-  }
+    if (
+      !fromPath ||
+      !newPath ||
+      typeof fromPath !== "string" ||
+      typeof newPath !== "string"
+    ) {
+      console.debug("[handleMoveDoc] 缺少 fromPath 或 newPath");
+      return;
+    }
 
-  // 提取文档 ID
-  const pathSegments = newPath.split("/").filter((s) => s.length > 0);
-  const docFileName = pathSegments[pathSegments.length - 1];
-  const docId = docFileName.replace(/\.sy$/, "");
+    // 提取文档 ID
+    const pathSegments = newPath.split("/").filter((s) => s.length > 0);
+    const docFileName = pathSegments[pathSegments.length - 1];
+    const docId = docFileName.replace(/\.sy$/, "");
 
-  if (!docId) {
-    console.debug("[handleMoveDoc] 无法提取文档 ID");
-    return;
-  }
+    if (!docId) {
+      console.debug("[handleMoveDoc] 无法提取文档 ID");
+      return;
+    }
 
-  // 提取原父文档路径和新父文档路径
-  const fromParentPath = fromPath.replace(/\/[^/]+\.sy$/, "");
-  const newParentPath = newPath.replace(/\/[^/]+\.sy$/, "");
+    // 提取原父文档路径和新父文档路径
+    const fromParentPath = fromPath.replace(/\/[^/]+\.sy$/, "");
+    const newParentPath = newPath.replace(/\/[^/]+\.sy$/, "");
 
-  // ======================================================================
-  // 2. 从缓存查找父文档 ID
-  // ======================================================================
-  let oldParentDocId = null;
-  let newParentDocId = null;
+    // ======================================================================
+    // 2. 从缓存查找父文档 ID
+    // ======================================================================
+    let oldParentDocId = null;
+    let newParentDocId = null;
 
-  if (fromParentPath !== fromPath) {
-    for (const [cachedId, cachedPath] of this.docPathMap.entries()) {
-      if (cachedPath === fromParentPath + ".sy") {
-        oldParentDocId = cachedId;
-        break;
+    if (fromParentPath !== fromPath) {
+      for (const [cachedId, cachedPath] of this.docPathMap.entries()) {
+        if (cachedPath === fromParentPath + ".sy") {
+          oldParentDocId = cachedId;
+          break;
+        }
       }
     }
-  }
 
-  if (newParentPath !== newPath) {
-    for (const [cachedId, cachedPath] of this.docPathMap.entries()) {
-      if (cachedPath === newParentPath + ".sy") {
-        newParentDocId = cachedId;
-        break;
+    if (newParentPath !== newPath) {
+      for (const [cachedId, cachedPath] of this.docPathMap.entries()) {
+        if (cachedPath === newParentPath + ".sy") {
+          newParentDocId = cachedId;
+          break;
+        }
       }
     }
-  }
 
-  // ======================================================================
-  // 3. 递归更新被移动文档及其所有子孙的路径缓存
-  // ======================================================================
-  // 更新当前文档的路径
-  this.docPathMap.set(docId, newPath);
+    // ======================================================================
+    // 3. 递归更新被移动文档及其所有子孙的路径缓存
+    // ======================================================================
+    // 更新当前文档的路径
+    this.docPathMap.set(docId, newPath);
 
-  // 查询所有子孙文档（基于原路径）
-  const fromPathWithoutExt = fromPath.replace(/\.sy$/, "");
-  const newPathWithoutExt = newPath.replace(/\.sy$/, "");
+    // 查询所有子孙文档（基于原路径）
+    const fromPathWithoutExt = fromPath.replace(/\.sy$/, "");
+    const newPathWithoutExt = newPath.replace(/\.sy$/, "");
 
-  try {
-    const descendantsSql = `SELECT id, path FROM blocks WHERE path LIKE '${fromPathWithoutExt}/%' AND type = 'd'`;
-    const descendants = await this.apiService.querySql(descendantsSql);
-    for (const row of descendants) {
-      const oldChildPath = row.path;
-      const newChildPath = oldChildPath.replace(fromPathWithoutExt, newPathWithoutExt);
-      this.docPathMap.set(row.id, newChildPath);
+    try {
+      const descendantsSql = `SELECT id, path FROM blocks WHERE path LIKE '${fromPathWithoutExt}/%' AND type = 'd'`;
+      const descendants = await this.apiService.querySql(descendantsSql);
+      for (const row of descendants) {
+        const oldChildPath = row.path;
+        const newChildPath = oldChildPath.replace(
+          fromPathWithoutExt,
+          newPathWithoutExt,
+        );
+        this.docPathMap.set(row.id, newChildPath);
+      }
+    } catch (e) {
+      console.debug("[handleMoveDoc] 更新子孙路径缓存失败", e.message);
     }
-  } catch (e) {
-    console.debug("[handleMoveDoc] 更新子孙路径缓存失败", e.message);
-  }
 
-  // ======================================================================
-  // 4. 更新父子关系缓存（仅修改直接父文档）
-  // ======================================================================
-  if (oldParentDocId) {
-    const oldChildren = this.docChildrenMap.get(oldParentDocId);
-    if (oldChildren) {
-      const index = oldChildren.indexOf(docId);
-      if (index !== -1) oldChildren.splice(index, 1);
+    // ======================================================================
+    // 4. 更新父子关系缓存（仅修改直接父文档）
+    // ======================================================================
+    if (oldParentDocId) {
+      const oldChildren = this.docChildrenMap.get(oldParentDocId);
+      if (oldChildren) {
+        const index = oldChildren.indexOf(docId);
+        if (index !== -1) oldChildren.splice(index, 1);
+      }
     }
-  }
 
-  if (newParentDocId) {
-    this.docParentMap.set(docId, newParentDocId);
-    if (!this.docChildrenMap.has(newParentDocId)) {
-      this.docChildrenMap.set(newParentDocId, []);
-    }
-    const newChildren = this.docChildrenMap.get(newParentDocId);
-    if (!newChildren.includes(docId)) {
-      newChildren.push(docId); // 暂追加末尾，后续刷新时会重新排序
-    }
-  }
-
-  // ======================================================================
-  // 5. 遍历所有主文档，更新拼接区域中的文档归属
-  // ======================================================================
-  for (const [parentDocId, data] of this.concatContainers.entries()) {
-    const wasSubDoc = data.subDocIds.includes(docId);
-
-    // 检查新位置是否还在当前主文档的有效层级范围内
-    let isNowSubDoc = false;
     if (newParentDocId) {
-      const isNewParentValid = await this.isDirectOrIndirectSubDoc(
-        newParentDocId,
-        parentDocId,
-      );
-      const level = await this.getDocLevel(docId, parentDocId);
-      isNowSubDoc =
-        isNewParentValid && level <= this.config.maxDocumentHierarchyLevel;
+      this.docParentMap.set(docId, newParentDocId);
+      if (!this.docChildrenMap.has(newParentDocId)) {
+        this.docChildrenMap.set(newParentDocId, []);
+      }
+      const newChildren = this.docChildrenMap.get(newParentDocId);
+      if (!newChildren.includes(docId)) {
+        newChildren.push(docId); // 暂追加末尾，后续刷新时会重新排序
+      }
     }
 
-    if (wasSubDoc && !isNowSubDoc) {
-      // 【从原父文档拼接区域移除】
-      const subContainer = data.container.querySelector(
-        `[${CONFIG.ATTRIBUTES.SUBDOC_ID}="${docId}"]`,
-      );
-      if (subContainer) {
-        subContainer.remove();
+    // ======================================================================
+    // 5. 遍历所有主文档，更新拼接区域中的文档归属
+    // ======================================================================
+    for (const [parentDocId, data] of this.concatContainers.entries()) {
+      const wasSubDoc = data.subDocIds.includes(docId);
+
+      // 检查新位置是否还在当前主文档的有效层级范围内
+      let isNowSubDoc = false;
+      if (newParentDocId) {
+        // 修复：如果新父文档就是当前主文档本身，视为有效
+        const isNewParentValid =
+          newParentDocId === parentDocId ||
+          (await this.isDirectOrIndirectSubDoc(newParentDocId, parentDocId));
+        const level = await this.getDocLevel(docId, parentDocId);
+        isNowSubDoc =
+          isNewParentValid && level <= this.config.maxDocumentHierarchyLevel;
       }
-      data.subDocIds = data.subDocIds.filter((id) => id !== docId);
 
-      const containers = this.subdocElements.get(docId);
-      if (containers) {
-        const filtered = containers.filter(
-          (c) => c.parentElement !== data.container,
+      if (wasSubDoc && !isNowSubDoc) {
+        // 【从原父文档拼接区域移除】
+        const subContainer = data.container.querySelector(
+          `[${CONFIG.ATTRIBUTES.SUBDOC_ID}="${docId}"]`,
         );
-        if (filtered.length === 0) {
-          this.subdocElements.delete(docId);
-        } else {
-          this.subdocElements.set(docId, filtered);
+        if (subContainer) {
+          subContainer.remove();
+        }
+        data.subDocIds = data.subDocIds.filter((id) => id !== docId);
+
+        const containers = this.subdocElements.get(docId);
+        if (containers) {
+          const filtered = containers.filter(
+            (c) => c.parentElement !== data.container,
+          );
+          if (filtered.length === 0) {
+            this.subdocElements.delete(docId);
+          } else {
+            this.subdocElements.set(docId, filtered);
+          }
+        }
+      } else if (!wasSubDoc && isNowSubDoc) {
+        // 【添加到新父文档拼接区域】- 先追加到末尾，后续刷新时会调整顺序
+        try {
+          const html = await this.documentService.renderSubDocHtml(docId);
+          const subDocContainer = this.componentService.createSubDocContainer(
+            { id: docId, name: docFileName.replace(/\.sy$/, "") },
+            data.editorElement,
+          );
+
+          const contentDiv = subDocContainer.querySelector(
+            `.${CONFIG.CSS_CLASSES.SUBDOC_CONTENT}`,
+          );
+          if (contentDiv) {
+            contentDiv.innerHTML = html;
+            this.componentService.setContentEditable(contentDiv);
+          }
+
+          data.container.appendChild(subDocContainer);
+          data.subDocIds.push(docId);
+
+          if (!this.subdocElements.has(docId)) {
+            this.subdocElements.set(docId, []);
+          }
+          this.subdocElements.get(docId).push(subDocContainer);
+        } catch (e) {
+          console.warn(`渲染移动后的子文档 ${docId} 失败`, e);
         }
       }
-    } else if (!wasSubDoc && isNowSubDoc) {
-      // 【添加到新父文档拼接区域】- 先追加到末尾，后续刷新时会调整顺序
-      try {
-        const html = await this.documentService.renderSubDocHtml(docId);
-        const subDocContainer = this.componentService.createSubDocContainer(
-          { id: docId, name: docFileName.replace(/\.sy$/, "") },
-          data.editorElement,
-        );
+    }
 
-        const contentDiv = subDocContainer.querySelector(
-          `.${CONFIG.CSS_CLASSES.SUBDOC_CONTENT}`,
-        );
-        if (contentDiv) {
-          contentDiv.innerHTML = html;
-          this.componentService.setContentEditable(contentDiv);
+    // ======================================================================
+    // 6. 收集所有受影响的主文档并刷新拼接列表
+    // ======================================================================
+    const affectedMainDocs = new Set();
+    for (const mainDocId of this.concatContainers.keys()) {
+      // 修复：如果旧父文档就是主文档本身，也加入受影响列表
+      if (
+        oldParentDocId &&
+        (oldParentDocId === mainDocId ||
+          (await this.isDirectOrIndirectSubDoc(oldParentDocId, mainDocId)))
+      ) {
+        affectedMainDocs.add(mainDocId);
+      }
+      if (
+        newParentDocId &&
+        (newParentDocId === mainDocId ||
+          (await this.isDirectOrIndirectSubDoc(newParentDocId, mainDocId)))
+      ) {
+        affectedMainDocs.add(mainDocId);
+      }
+    }
+
+    for (const mainDocId of affectedMainDocs) {
+      const data = this.concatContainers.get(mainDocId);
+      if (data) {
+        const newOrder = this._getFlattenSubDocIds(mainDocId);
+        if (newOrder && !this._arraysEqual(data.subDocIds, newOrder)) {
+          this._reorderSubDocs(mainDocId, data, newOrder);
+          data.subDocIds = newOrder;
         }
-
-        data.container.appendChild(subDocContainer);
-        data.subDocIds.push(docId);
-
-        if (!this.subdocElements.has(docId)) {
-          this.subdocElements.set(docId, []);
-        }
-        this.subdocElements.get(docId).push(subDocContainer);
-      } catch (e) {
-        console.warn(`渲染移动后的子文档 ${docId} 失败`, e);
       }
     }
   }
-
-  // ======================================================================
-  // 6. 收集所有受影响的主文档并刷新拼接列表
-  // ======================================================================
-  const affectedMainDocs = new Set();
-  for (const mainDocId of this.concatContainers.keys()) {
-    if (oldParentDocId && await this.isDirectOrIndirectSubDoc(oldParentDocId, mainDocId)) {
-      affectedMainDocs.add(mainDocId);
-    }
-    if (newParentDocId && await this.isDirectOrIndirectSubDoc(newParentDocId, mainDocId)) {
-      affectedMainDocs.add(mainDocId);
-    }
-  }
-
-  for (const mainDocId of affectedMainDocs) {
-    const data = this.concatContainers.get(mainDocId);
-    if (data) {
-      const newOrder = this._getFlattenSubDocIds(mainDocId);
-      if (newOrder && !this._arraysEqual(data.subDocIds, newOrder)) {
-        this._reorderSubDocs(mainDocId, data, newOrder);
-        data.subDocIds = newOrder;
-      }
-    }
-  }
-}
 
   /**
    * 处理文档排序变化事件（同级拖拽排序）
@@ -2651,7 +2625,6 @@ async handleMoveDoc(detail) {
       console.debug("[handleFiletreeSortChanged] 缺少必要数据");
       return;
     }
-
 
     // 1. 根据 parentPath 获取父文档 ID
     let parentDocId = null;
@@ -2677,17 +2650,15 @@ async handleMoveDoc(detail) {
       return;
     }
 
-
     // 2. 更新缓存中该父文档的直接子文档顺序
     this.docChildrenMap.set(parentDocId, childIDs.slice());
 
     // 3. 遍历所有开启拼接的主文档
     for (const [docId, data] of this.concatContainers.entries()) {
-      // 检查主文档是否包含该父文档（即父文档是主文档的子孙）
-      const isParentInScope = await this.isDirectOrIndirectSubDoc(
-        parentDocId,
-        docId,
-      );
+      // 检查主文档是否包含该父文档（父文档等于主文档自身也视为有效）
+      const isParentInScope =
+        parentDocId === docId ||
+        (await this.isDirectOrIndirectSubDoc(parentDocId, docId));
       if (!isParentInScope) {
         continue;
       }
@@ -2702,8 +2673,6 @@ async handleMoveDoc(detail) {
         data.subDocIds = newOrder; // 更新存储的列表
       }
     }
-
-    showMessage(`文档顺序已更新`, 1000);
   }
 
   /**
@@ -2902,6 +2871,7 @@ async handleMoveDoc(detail) {
     this.renderDebounceTimers.clear();
     this.removeAllConcatContainers();
     this.eventListenerManager.cleanup();
+    this.stateService.clearAllConcatStates();
   }
 
   /**
